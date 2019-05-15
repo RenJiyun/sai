@@ -1,11 +1,12 @@
-package com.eggip.sai.testhelper;
+package com.eggip.sai.helper;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.eggip.sai.testhelper.TestDataTemplate.TestData;
+import com.eggip.sai.helper.TestDataTemplate;
+import com.eggip.sai.helper.TestDataTemplate.TestData;
 import com.jnape.palatable.lambda.adt.Either;
 
 import org.junit.Assert;
@@ -27,21 +28,21 @@ public class TestDataTemplateTest {
 
     @Test
     public void testReadNullXlsFile() {
-        Either<List<TestData>, Throwable> result = TestDataTemplate.read(null);
-        Assert.assertEquals("xlsFile is null", result.projectB().orElse(null).getMessage());
+        Either<RuntimeException, List<TestData>> result = TestDataTemplate.read(null);
+        Assert.assertEquals("xlsFile is null", result.projectA().orElse(null).getMessage());
     }
 
 
     @Test
     public void testRowNum() {
-        List<TestData> testDatas = TestDataTemplate.read(xlsFile).projectA().orElse(new ArrayList<>());
+        List<TestData> testDatas = TestDataTemplate.read(xlsFile).projectB().orElse(new ArrayList<>());
         Assert.assertEquals(2, testDatas.size());
     }
 
 
     @Test
     public void testRowValue() {
-        List<TestData> testDatas = TestDataTemplate.read(xlsFile).projectA().orElse(new ArrayList<>());
+        List<TestData> testDatas = TestDataTemplate.read(xlsFile).projectB().orElse(new ArrayList<>());
         Assert.assertTrue(testDatas.get(0).isTableAssertion);
         Assert.assertFalse(testDatas.get(0).ignore);
     }
