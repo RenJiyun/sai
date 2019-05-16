@@ -1,10 +1,8 @@
 package com.eggip.sai.helper;
 
 import java.net.URL;
-import java.util.Map;
 
 import com.eggip.sai.helper.TestDataTemplate.TestData;
-import com.google.gson.Gson;
 
 import org.apache.commons.lang3.tuple.Pair;
 

@@ -5,14 +5,20 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
-import com.eggip.sai.util.Errors;
 import com.jnape.palatable.lambda.adt.Either;
+import com.jnape.palatable.lambda.adt.Maybe;
+import com.jnape.palatable.lambda.functions.Fn1;
+import com.jnape.palatable.lambda.functions.builtin.fn1.Id;
 
+import static com.jnape.palatable.lambda.adt.Try.*;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -23,7 +29,7 @@ public class TestDataTemplate {
     public static class TestData {
 
         public TestData(String caseNo, String title, String assertion, boolean isTableAssertion, boolean ignore,
-                List<Pair<String, Object>> parameters) {
+                Map<String, Object> parameters) {
             this.caseNo = caseNo;
             this.title = title;
             this.assertion = assertion;
@@ -42,46 +48,33 @@ public class TestDataTemplate {
 
         public final boolean ignore;
 
-        public final List<Pair<String, Object>> parameters;
+        public final Map<String, Object> parameters;
     }
 
-    public static Either<RuntimeException, List<TestData>> read(File xlsFile) {
+    public static Maybe<List<TestData>> read(File xlsFile) {
+
         if (xlsFile == null)
-            return Either.left(new NullPointerException("xlsFile is null"));
+            return Maybe.nothing();
 
-        List<TestData> testDatas = new ArrayList<>();
-        HSSFWorkbook workbook = null;
-        try {
-            workbook = new HSSFWorkbook(new FileInputStream(xlsFile));
-            HSSFSheet sheet = workbook.getSheetAt(0);
-            Row firstRow = sheet.getRow(0);
-            sheet.removeRow(firstRow);
-
-            List<Triple<String, Class<?>, Function<String, ?>>> paramInfos = parseParamInfos(firstRow);
-
-            sheet.forEach(row -> {
-                testDatas.add(toTestData(paramInfos, row));
-            });
-        } catch (Exception e) {
-            return Either.left(new RuntimeException(e));
-        } finally {
-            try {
-                if (workbook != null)
-                    workbook.close();
-            } catch (IOException e) {
-                return Either.left(new RuntimeException(e));
-            }
-        }
-
-        return Either.right(testDatas);
-
+        return withResources(
+            () -> new HSSFWorkbook(new FileInputStream(xlsFile)), 
+            (r) -> {
+                List<TestData> testDatas = new ArrayList<>();
+                HSSFSheet sheet = r.getSheetAt(0);
+                Row firstRow = sheet.getRow(0);
+                sheet.removeRow(firstRow);
+                List<Triple<String, Class<?>, Function<String, ?>>> paramInfos = parseParamInfos(firstRow);
+                sheet.forEach(row -> {
+                    testDatas.add(toTestData(paramInfos, row));
+                });
+                return success(testDatas);
+        }).projectB();
     }
 
-    /**
-     * 解析参数信息 参数名格式：{paramName}[@@{paramType[(simple format string)]}] 默认参数类型为string
-     * 例如：param1@@int, param2@@string = param2, param3@@date("yyyy-MM-dd")
-     * 目前只有date类型支持格式化，若date类型没有指定日期格式化字符串，默认之为yyyy-MM-dd
-     */
+
+
+
+    
     private static List<Triple<String, Class<?>, Function<String, ?>>> parseParamInfos(Row keyRow) {
         List<Triple<String, Class<?>, Function<String, ?>>> ret = new ArrayList<>();
         keyRow.forEach(cell -> {
@@ -98,19 +91,19 @@ public class TestDataTemplate {
 
                 switch (paramTypeName) {
                 case "int":
-                    paramInfo = Triple.of(paramName, Integer.class, s -> Integer.parseInt(s));
+                    paramInfo = Triple.of(paramName, Integer.class, Integer::parseInt);
                     break;
 
                 case "short":
-                    paramInfo = Triple.of(paramName, Short.class, s -> Short.parseShort(s));
+                    paramInfo = Triple.of(paramName, Short.class, Short::parseShort);
                     break;
 
                 case "long":
-                    paramInfo = Triple.of(paramName, Long.class, s -> Long.parseLong(s));
+                    paramInfo = Triple.of(paramName, Long.class, Long::parseLong);
                     break;
 
                 case "double":
-                    paramInfo = Triple.of(paramName, Double.class, s -> Double.parseDouble(s));
+                    paramInfo = Triple.of(paramName, Double.class, Double::parseDouble);
                     break;
 
                 case "string":
@@ -118,11 +111,11 @@ public class TestDataTemplate {
                     break;
 
                 case "date":
-                    final String dateFormat = leftBracketIndex == -1 ? "yyyy-MM-dd" 
-                                                                     : paramMetaInfo.substring(leftBracketIndex).replaceAll("[\"()]", "");
+                    final String dateFormat = leftBracketIndex == -1 ? "yyyy-MM-dd"
+                            : paramMetaInfo.substring(leftBracketIndex).replaceAll("[\"()]", "");
 
-                    paramInfo = Triple.of(paramName, Date.class, 
-                                    s -> Errors.wrap(t -> DateUtils.parseDate((String) t, dateFormat), s).orThrow(e -> e));
+                    paramInfo = Triple.of(paramName, Date.class,
+                            s -> trying(() -> DateUtils.parseDate(s, dateFormat)).orThrow());
                     break;
                 }
             }
@@ -130,6 +123,26 @@ public class TestDataTemplate {
         });
 
         return ret;
+    }
+
+
+    
+    /**
+     * 解析参数信息 参数名格式：{paramName}[@@{paramType[(simple format string)]}] 默认参数类型为string
+     * 例如：param1@@int, param2@@string = param2, param3@@date("yyyy-MM-dd")
+     * 目前只有date类型支持格式化，若date类型没有指定日期格式化字符串，默认之为yyyy-MM-dd
+     */
+    private static Maybe<Triple<String, Class<?>, Fn1<String, ?>>> parseParamInfo(String paramMetaInfo) {
+        if (StringUtils.isAllBlank(paramMetaInfo)) return Maybe.nothing();
+        String[] splits = paramMetaInfo.split("@@");
+        String paramName = splits[0];
+
+        if (splits.length > 1) {
+
+        } else {
+            return Maybe.just(Triple.of(paramName, String.class, Id.id()));
+        }
+
     }
 
     // {case_no, title, assertion, is_table_assertion, ignore, [parameters]}
@@ -140,21 +153,16 @@ public class TestDataTemplate {
         boolean isTableAssertion = row.getCell(3).getBooleanCellValue();
         boolean ignore = row.getCell(4).getBooleanCellValue();
 
-        List<Pair<String, Object>> parameters = new ArrayList<>();
+        Map<String, Object> parameters = new HashMap<>();
         for (int i = 0; i < paramInfos.size(); i++) {
             Triple<String, Class<?>, Function<String, ?>> paramInfo = paramInfos.get(i);
-            Object value = null;
             if (row.getLastCellNum() > i + 5) {
-                value = paramInfo.getRight().apply(row.getCell(i + 5).getStringCellValue());
+                Object value = paramInfo.getRight().apply(row.getCell(i + 5).getStringCellValue());
+                parameters.put(paramInfo.getLeft(), value);
             }
-
-            parameters.add(Pair.of(paramInfo.getLeft(), value));
-
         }
 
         return new TestData(caseNo, title, assertion, isTableAssertion, ignore, parameters);
     }
-
-
 
 }
