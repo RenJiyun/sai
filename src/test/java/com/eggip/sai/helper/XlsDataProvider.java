@@ -21,7 +21,7 @@ public class XlsDataProvider {
      * 所有的测试数据文件约定放置在classpath:resources/test-assets下， 在该路径下可以按模块进行组织
      * 若测试方法对应的测试数据文件不存在，则该测试方法将被忽略
      */
-    @DataProvider
+    @DataProvider(name = "xlsDataProvider")
     public static Object[][] provide(Method testMethod) {
         String testDataFileName = String.format("%s-%s.xls", testMethod.getDeclaringClass().getSimpleName(),
                 testMethod.getName());
@@ -38,13 +38,10 @@ public class XlsDataProvider {
     private static Object[][] transferToObjsArray(List<TestData> testDatas) {
         if (testDatas.size() == 0) return new Object[0][0];
 
-        int paramNum = testDatas.get(0).parameters.size();
-        Object[][] ret = new Object[testDatas.size()][paramNum];
+        Object[][] ret = new Object[testDatas.size()][1];
 
         for (int i = 0; i < testDatas.size(); i++) {
-            for (int j = 0; j < testDatas.get(i).parameters.size(); j++) {
-                ret[i][j] = testDatas.get(i).parameters.get(j);
-            }
+            ret[i][0] = testDatas.get(i);
         }
 
         return ret;
