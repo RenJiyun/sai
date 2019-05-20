@@ -1,13 +1,14 @@
 package com.eggip.sai.helper;
 
+import static com.jnape.palatable.lambda.adt.Try.trying;
+
 import java.io.File;
-import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Optional;
 
 import com.eggip.sai.helper.TestDataTemplate.TestData;
-import com.jnape.palatable.lambda.adt.Either;
+import com.jnape.palatable.lambda.adt.Try;
 
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -25,18 +26,14 @@ public class XlsDataProvider {
     public static Object[][] provide(Method testMethod) {
         String testDataFileName = String.format("%s-%s.xls", testMethod.getDeclaringClass().getSimpleName(),
                 testMethod.getName());
-
-        return getTestDataFile(testDataFileName)
-                        .orThrow(t -> t)
-                        .map(f -> transferToObjsArray(TestDataTemplate.read(f).orThrow(e -> e)))
-                        .orElse(new Object[0][0]);
-
+        
+        return transferToObjsArray(getTestDataFile(testDataFileName).flatMap(f -> TestDataTemplate.read(f)).orThrow());
     }
 
-
-
+    
     private static Object[][] transferToObjsArray(List<TestData> testDatas) {
-        if (testDatas.size() == 0) return new Object[0][0];
+        if (testDatas.size() == 0)
+            return new Object[0][0];
 
         Object[][] ret = new Object[testDatas.size()][1];
 
@@ -47,25 +44,17 @@ public class XlsDataProvider {
         return ret;
     }
 
-
-    
-    private static Either<RuntimeException, Optional<File>> getTestDataFile(String filename) {
-        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        try {
+    private static Try<File> getTestDataFile(String filename) {
+        return trying(() -> {
+            ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
             Resource[] resources = resolver.getResources(String.format("classpath*:test-assets/**/%s", filename));
             if (resources.length > 1) {
-                return Either.left(new RuntimeException(String.format("ambiguous file: %s", filename)));
+                throw new RuntimeException(String.format("ambiguous file: %s", filename));
             } else if (resources.length == 0) {
-                return Either.right(Optional.empty());
+                throw new FileNotFoundException(filename);
             } else {
-                return Either.right(Optional.of(resources[0].getFile()));
+                return resources[0].getFile();
             }
-        } catch (IOException e) {
-            return Either.left(new RuntimeException(e));
-        }
+        });
     }
-
-
-
-
 }

@@ -1,30 +1,31 @@
 package com.eggip.sai.helper;
 
+import static com.jnape.palatable.lambda.adt.Try.failure;
+import static com.jnape.palatable.lambda.adt.Try.success;
+import static com.jnape.palatable.lambda.adt.Try.withResources;
+
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import com.jnape.palatable.lambda.adt.Either;
-import com.jnape.palatable.lambda.adt.Maybe;
+import com.jnape.palatable.lambda.adt.Try;
+import com.jnape.palatable.lambda.adt.hlist.Tuple2;
 import com.jnape.palatable.lambda.functions.Fn1;
-import com.jnape.palatable.lambda.functions.builtin.fn1.Id;
 
-import static com.jnape.palatable.lambda.adt.Try.*;
-
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateUtils;
-import org.apache.commons.lang3.tuple.Triple;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 
 public class TestDataTemplate {
+
+    private static final int START_CELL_NUM_OF_PARAMS = 5;
 
     public static class TestData {
 
@@ -51,118 +52,159 @@ public class TestDataTemplate {
         public final Map<String, Object> parameters;
     }
 
-    public static Maybe<List<TestData>> read(File xlsFile) {
-
+    public static Try<List<TestData>> read(File xlsFile) {
         if (xlsFile == null)
-            return Maybe.nothing();
+            return failure(new NullPointerException("xlsFile is null"));
 
-        return withResources(
-            () -> new HSSFWorkbook(new FileInputStream(xlsFile)), 
-            (r) -> {
-                List<TestData> testDatas = new ArrayList<>();
-                HSSFSheet sheet = r.getSheetAt(0);
-                Row firstRow = sheet.getRow(0);
-                sheet.removeRow(firstRow);
-                List<Triple<String, Class<?>, Function<String, ?>>> paramInfos = parseParamInfos(firstRow);
-                sheet.forEach(row -> {
-                    testDatas.add(toTestData(paramInfos, row));
-                });
-                return success(testDatas);
-        }).projectB();
+        return withResources(() -> new HSSFWorkbook(new FileInputStream(xlsFile)), (r) -> {
+            List<TestData> testDatas = new ArrayList<>();
+            HSSFSheet sheet = r.getSheetAt(0);
+            Row firstRow = sheet.getRow(0);
+            sheet.removeRow(firstRow);
+            List<Tuple2<String, Fn1<String, ?>>> paramInfos = parseParamInfos(firstRow, START_CELL_NUM_OF_PARAMS);
+            sheet.forEach(row -> {
+                testDatas.add(toTestData(paramInfos, row, START_CELL_NUM_OF_PARAMS));
+            });
+            return success(testDatas);
+        });
     }
 
+    /**
+     * 获取测试参数的元信息
+     * 参数名格式：
+     * {paramName}[@@
+     *      {
+     *          int | short | long | string | double | 
+     *          numeric[(1,12)] | 
+     *          date[(yyyy-MM-dd)] | 
+     *          sql |
+     *          fn
+     *      }
+     * ]
+     * @param <T>
+     * @param keyRow
+     * @param startCellNum
+     * @return
+     */
+    private static List<Tuple2<String, Fn1<String, ?>>> parseParamInfos(Row keyRow, int startCellNum) {
+        List<Tuple2<String, Fn1<String, ?>>> ret = new ArrayList<>();
+        if (keyRow.getLastCellNum() < startCellNum)
+            return ret;
 
-
-
-    
-    private static List<Triple<String, Class<?>, Function<String, ?>>> parseParamInfos(Row keyRow) {
-        List<Triple<String, Class<?>, Function<String, ?>>> ret = new ArrayList<>();
-        keyRow.forEach(cell -> {
-            String[] cellValueSplited = cell.getStringCellValue().split("@@");
-            String paramName = cellValueSplited[0];
-            Triple<String, Class<?>, Function<String, ?>> paramInfo = null;
-            if (cellValueSplited.length == 1) {
-                paramInfo = Triple.of(paramName, String.class, s -> s);
+        Tuple2<String, Fn1<String, ?>> paramInfo = null;
+        for (int i = startCellNum; i < keyRow.getLastCellNum(); i++) {
+            String[] temp = keyRow.getCell(i).getStringCellValue().split("@@");
+            String paramName = temp[0];
+            if (temp.length <= 1) {
+                paramInfo = Tuple2.tuple(paramName, s -> s);
             } else {
-                String paramMetaInfo = cellValueSplited[1];
-                int leftBracketIndex = paramMetaInfo.indexOf("(");
-                String paramTypeName = leftBracketIndex == -1 ? paramMetaInfo
-                        : paramMetaInfo.substring(0, leftBracketIndex);
-
-                switch (paramTypeName) {
+                Tuple2<String, String> metaInfo = parseMetaInfo(temp[1]);
+                Fn1<String, ?> parseFn = null;
+                switch (metaInfo._1()) {
                 case "int":
-                    paramInfo = Triple.of(paramName, Integer.class, Integer::parseInt);
+                    parseFn = Integer::parseInt;
                     break;
 
                 case "short":
-                    paramInfo = Triple.of(paramName, Short.class, Short::parseShort);
+                    parseFn = Short::parseShort;
                     break;
 
                 case "long":
-                    paramInfo = Triple.of(paramName, Long.class, Long::parseLong);
+                    parseFn = Long::parseLong;
                     break;
 
                 case "double":
-                    paramInfo = Triple.of(paramName, Double.class, Double::parseDouble);
+                    parseFn = Double::parseDouble;
+                    break;
+
+                case "numeric":
+                    parseFn = s -> {
+                        BigDecimal bigDecimal = new BigDecimal(s);
+                        if (metaInfo._2() != null) {
+                            int scale = Integer.parseInt(metaInfo._2().split(",")[1].trim());
+                            bigDecimal.setScale(scale);
+                        }
+                        return bigDecimal;
+                    };
                     break;
 
                 case "string":
-                    paramInfo = Triple.of(paramName, String.class, s -> s);
+                    parseFn = s -> s;
                     break;
 
                 case "date":
-                    final String dateFormat = leftBracketIndex == -1 ? "yyyy-MM-dd"
-                            : paramMetaInfo.substring(leftBracketIndex).replaceAll("[\"()]", "");
-
-                    paramInfo = Triple.of(paramName, Date.class,
-                            s -> trying(() -> DateUtils.parseDate(s, dateFormat)).orThrow());
+                    parseFn = s -> {
+                        String format = metaInfo._2() == null ? "yyyy-MM-dd" : metaInfo._2();
+                        return DateUtils.parseDate(s, format);
+                    };
                     break;
+                
+                case "sql": 
+                    parseFn = s -> s;
+                    break;
+                
+                case "fn":
+                    parseFn = s -> s;
+                    break;
+
+                default:
+                    throw new IllegalArgumentException(String.format("unknown param type: %s", metaInfo._1()));
                 }
+
+                paramInfo = Tuple2.tuple(paramName, parseFn);
+
             }
+
             ret.add(paramInfo);
-        });
+
+        }
 
         return ret;
     }
 
-
-    
-    /**
-     * 解析参数信息 参数名格式：{paramName}[@@{paramType[(simple format string)]}] 默认参数类型为string
-     * 例如：param1@@int, param2@@string = param2, param3@@date("yyyy-MM-dd")
-     * 目前只有date类型支持格式化，若date类型没有指定日期格式化字符串，默认之为yyyy-MM-dd
-     */
-    private static Maybe<Triple<String, Class<?>, Fn1<String, ?>>> parseParamInfo(String paramMetaInfo) {
-        if (StringUtils.isAllBlank(paramMetaInfo)) return Maybe.nothing();
-        String[] splits = paramMetaInfo.split("@@");
-        String paramName = splits[0];
-
-        if (splits.length > 1) {
-
-        } else {
-            return Maybe.just(Triple.of(paramName, String.class, Id.id()));
-        }
-
+    private static Tuple2<String, String> parseMetaInfo(String s) {
+        int indexOfLeftBracket = s.indexOf("(");
+        if (indexOfLeftBracket == -1)
+            return Tuple2.tuple(s, null);
+        else
+            return Tuple2.tuple(s.substring(0, indexOfLeftBracket),
+                    s.substring(indexOfLeftBracket).replaceAll("[()\"]", ""));
     }
 
-    // {case_no, title, assertion, is_table_assertion, ignore, [parameters]}
-    private static TestData toTestData(List<Triple<String, Class<?>, Function<String, ?>>> paramInfos, Row row) {
+    
+
+    
+
+    /**
+     * 测试运行时，需要做以下三件事情： 
+     * 1. 断言解析
+     * 2. 内部函数解析
+     * 3. 运行用户指定的sql获取参数值
+     */
+    private static TestData toTestData(List<Tuple2<String, Fn1<String, ?>>> paramInfos, Row row, int startCellNumOfParams) {
         String caseNo = row.getCell(0).getStringCellValue();
         String title = row.getCell(1).getStringCellValue();
-        String assertion = row.getCell(2).getStringCellValue();
+        String assertion = row.getCell(2).getStringCellValue();    
         boolean isTableAssertion = row.getCell(3).getBooleanCellValue();
         boolean ignore = row.getCell(4).getBooleanCellValue();
 
         Map<String, Object> parameters = new HashMap<>();
         for (int i = 0; i < paramInfos.size(); i++) {
-            Triple<String, Class<?>, Function<String, ?>> paramInfo = paramInfos.get(i);
-            if (row.getLastCellNum() > i + 5) {
-                Object value = paramInfo.getRight().apply(row.getCell(i + 5).getStringCellValue());
-                parameters.put(paramInfo.getLeft(), value);
+            Tuple2<String, Fn1<String, ?>> paramInfo = paramInfos.get(i);
+            if (row.getLastCellNum() > i + startCellNumOfParams) {
+                Object value = paramInfo._2().apply(getCellValue(row.getCell(i + startCellNumOfParams)));
+                parameters.put(paramInfo._1(), value);
             }
         }
 
         return new TestData(caseNo, title, assertion, isTableAssertion, ignore, parameters);
+    }
+
+    
+    @SuppressWarnings("deprecation")
+    private static String getCellValue(Cell cell) {
+        cell.setCellType(CellType.STRING);
+        return cell.getStringCellValue();
     }
 
 }
