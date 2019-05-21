@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.eggip.sai.helper.TestDataTemplate.TestData;
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jnape.palatable.lambda.adt.Try;
 import com.jnape.palatable.lambda.adt.hlist.Tuple2;
 import com.jnape.palatable.lambda.adt.hlist.Tuple3;
@@ -63,8 +63,7 @@ public class XlsDataDrivenTestRunner {
     private Tuple2<Boolean, String> calculateResult(Response response, TestData testData) {
         String responseBody = response.asString();
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resJson = new Gson().fromJson(responseBody, Map.class);
+        
 
         
 
@@ -87,7 +86,7 @@ public class XlsDataDrivenTestRunner {
     private String prepareRequestBody(TestData testData) {
         Map<String, Object> parsedParams = new HashMap<>();
         testData.parameters.stream().map(this::calculateParam).forEach(p -> parsedParams.put(p._1(), p._2()));
-        return new Gson().toJson(parsedParams);
+        return Try.trying(() -> new ObjectMapper().writeValueAsString(parsedParams)).orThrow();
     }
 
 
