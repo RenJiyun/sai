@@ -41,7 +41,6 @@ public class TestDataTemplateTest {
     @Test
     public void testRowValue() {
         List<TestData> testDatas = TestDataTemplate.read(xlsFile).orThrow();
-        Assert.assertTrue(testDatas.get(0).isTableAssertion);
         Assert.assertFalse(testDatas.get(0).ignore);
     }
 

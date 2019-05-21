@@ -8,12 +8,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.jnape.palatable.lambda.adt.Try;
 import com.jnape.palatable.lambda.adt.hlist.Tuple2;
+import com.jnape.palatable.lambda.adt.hlist.Tuple3;
 import com.jnape.palatable.lambda.functions.Fn1;
 
 import org.apache.commons.lang3.time.DateUtils;
@@ -25,16 +24,21 @@ import org.apache.poi.ss.usermodel.Row;
 
 public class TestDataTemplate {
 
-    private static final int START_CELL_NUM_OF_PARAMS = 5;
+    public static final String INTERNAL_FUNCTION_PREFIX = "$";
+    public static final String SQL_PREFIX = "__";
+
+
+
+    private static final int START_CELL_NUM_OF_PARAMS = 4;
+    
 
     public static class TestData {
 
-        public TestData(String caseNo, String title, String assertion, boolean isTableAssertion, boolean ignore,
-                Map<String, Object> parameters) {
+        public TestData(String caseNo, String title, String assertion, boolean ignore,
+                List<Tuple3<String, String, Fn1<String, ?>>> parameters) {
             this.caseNo = caseNo;
             this.title = title;
             this.assertion = assertion;
-            this.isTableAssertion = isTableAssertion;
             this.ignore = ignore;
             this.parameters = parameters;
         }
@@ -45,11 +49,11 @@ public class TestDataTemplate {
 
         public final String assertion;
 
-        public final boolean isTableAssertion;
 
         public final boolean ignore;
 
-        public final Map<String, Object> parameters;
+        // (参数的原始值，参数名称，参数抓换器)
+        public final List<Tuple3<String, String, Fn1<String, ?>>> parameters;
     }
 
     public static Try<List<TestData>> read(File xlsFile) {
@@ -76,9 +80,7 @@ public class TestDataTemplate {
      *      {
      *          int | short | long | string | double | 
      *          numeric[(1,12)] | 
-     *          date[(yyyy-MM-dd)] | 
-     *          sql |
-     *          fn
+     *          date[(yyyy-MM-dd)]
      *      }
      * ]
      * @param <T>
@@ -138,14 +140,6 @@ public class TestDataTemplate {
                         return DateUtils.parseDate(s, format);
                     };
                     break;
-                
-                case "sql": 
-                    parseFn = s -> s;
-                    break;
-                
-                case "fn":
-                    parseFn = s -> s;
-                    break;
 
                 default:
                     throw new IllegalArgumentException(String.format("unknown param type: %s", metaInfo._1()));
@@ -185,19 +179,17 @@ public class TestDataTemplate {
         String caseNo = row.getCell(0).getStringCellValue();
         String title = row.getCell(1).getStringCellValue();
         String assertion = row.getCell(2).getStringCellValue();    
-        boolean isTableAssertion = row.getCell(3).getBooleanCellValue();
-        boolean ignore = row.getCell(4).getBooleanCellValue();
+        boolean ignore = row.getCell(3).getBooleanCellValue();
 
-        Map<String, Object> parameters = new HashMap<>();
+        List<Tuple3<String, String, Fn1<String, ?>>> parameters = new ArrayList<>();
         for (int i = 0; i < paramInfos.size(); i++) {
             Tuple2<String, Fn1<String, ?>> paramInfo = paramInfos.get(i);
             if (row.getLastCellNum() > i + startCellNumOfParams) {
-                Object value = paramInfo._2().apply(getCellValue(row.getCell(i + startCellNumOfParams)));
-                parameters.put(paramInfo._1(), value);
+                parameters.add(paramInfo.cons(getCellValue(row.getCell(i + startCellNumOfParams))));
             }
         }
 
-        return new TestData(caseNo, title, assertion, isTableAssertion, ignore, parameters);
+        return new TestData(caseNo, title, assertion, ignore, parameters);
     }
 
     
