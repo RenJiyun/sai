@@ -1,40 +1,54 @@
 package com.eggip.sai.domain;
 
-import java.util.Date;
-
-import javax.persistence.CascadeType;
-import javax.persistence.FetchType;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-
 import com.eggip.sai.access.Target;
+import lombok.*;
 
-import org.apache.catalina.Store;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import javax.persistence.*;
+import javax.validation.constraints.Past;
+import javax.validation.constraints.Size;
+import java.util.Date;
 
 @Getter
 @Setter
 @Builder
 @AllArgsConstructor
 @ToString
+@Entity(name = "member")
 public class Member implements Target<Store> {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+
+    @Size(min = 1, max = 50)
+    @Column(length = 50)
     private String name;
+
+
+    @Size(min = 11, max = 20)
+    @Column(length = 20, nullable = false)
     private String phone;
+
+    @Size(min = 1, max = 50)
+    @Column(length = 50, nullable = false)
     private String password;
+
+    @Size(min = 1, max = 30)
+    @Column(name = "open_id", length = 30)
     private String openId;
 
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "register_store_id")
+    @JoinColumn(name = "register_store_id", nullable = false)
     private Store registerStore;
 
+    @Past
+    @Column(name = "register_time", nullable = false)
     private Date registerTime;
+
+    @Column(name = "register_channel", nullable = false)
     private RegisterChannel registerChannel;
+
+    @Column(nullable = false)
     private Grade grade;
 
     public static enum RegisterChannel {

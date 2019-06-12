@@ -3,14 +3,11 @@ package com.eggip.sai.domain;
 import com.eggip.sai.access.Source;
 import com.eggip.sai.repository.CategoryRepository;
 import com.eggip.sai.util.LRTree.LRTreeNode;
-
+import lombok.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import javax.persistence.*;
+import javax.validation.constraints.Size;
 
 
 @Getter
@@ -18,10 +15,24 @@ import lombok.ToString;
 @Builder
 @AllArgsConstructor
 @ToString
+@Entity(name = "category")
 public class Category extends LRTreeNode<Category> implements Source<Goods> {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+
+    @Size(min = 1, max = 60)
+    @Column(length = 60, nullable = false)
     private String name;
+
+
+    @Size(min = 1, max = 30)
+    @Column(length = 30, nullable = false, unique = true)
     private String code;
+
+    @Size(min = 1, max = 30)
+    @Column(length = 30)
     private String parentCode;
 
 

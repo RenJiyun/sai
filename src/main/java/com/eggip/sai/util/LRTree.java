@@ -1,22 +1,10 @@
 package com.eggip.sai.util;
 
-import static com.jnape.palatable.lambda.adt.Maybe.just;
-import static com.jnape.palatable.lambda.adt.Maybe.nothing;
-import static com.jnape.palatable.lambda.adt.Try.failure;
-import static com.jnape.palatable.lambda.adt.Try.success;
-import static com.jnape.palatable.lambda.adt.Try.trying;
-
-import java.util.List;
-
-import javax.persistence.EntityManager;
-import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
-import javax.persistence.Query;
-
 import com.jnape.palatable.lambda.adt.Maybe;
 import com.jnape.palatable.lambda.adt.Try;
 import com.jnape.palatable.lambda.adt.Unit;
-
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -26,8 +14,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
-import lombok.Getter;
-import lombok.Setter;
+import javax.persistence.*;
+import java.util.List;
+
+import static com.jnape.palatable.lambda.adt.Maybe.just;
+import static com.jnape.palatable.lambda.adt.Maybe.nothing;
+import static com.jnape.palatable.lambda.adt.Try.*;
 
 /**
  * @see https://www.sitepoint.com/hierarchical-data-database-2/
@@ -315,13 +307,19 @@ public class LRTree implements ApplicationContextAware {
 
     @Getter
     @Setter
+    @MappedSuperclass
     public static abstract class LRTreeNode<T> {
+
+        @Column(name = "left_")
         private int left_;
+
+        @Column(name = "right_")
         private int right_;
+
+        @Column(name = "level_")
         private int level_;
 
         protected abstract Class<? extends JpaRepository<T, ?>> getCargoRepositoryClass();
-
     }
 
     @Override
