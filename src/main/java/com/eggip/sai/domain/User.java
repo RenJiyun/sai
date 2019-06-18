@@ -11,14 +11,16 @@ import javax.validation.constraints.Size;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "user")
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "sai_user")
 public class User implements Target<Organization> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
 
     @NotNull

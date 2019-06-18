@@ -11,14 +11,16 @@ import java.util.Date;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "member")
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "member")
 public class Member implements Target<Store> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
     @Size(min = 1, max = 50)
     @Column(length = 50)
@@ -38,7 +40,7 @@ public class Member implements Target<Store> {
     private String openId;
 
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "register_store_id", nullable = false)
+    @JoinColumn(name = "register_store_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Store registerStore;
 
     @Past

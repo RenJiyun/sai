@@ -13,14 +13,16 @@ import javax.validation.constraints.Size;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "category")
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "category")
 public class Category extends LRTreeNode<Category> implements Source<Goods> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
     @Size(min = 1, max = 60)
     @Column(length = 60, nullable = false)

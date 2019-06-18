@@ -10,14 +10,16 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "goods")
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
+@Entity
+@Table(name = "goods")
 public class Goods {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
     @Size(min = 1, max = 100)
     @Column(length = 100, nullable = false)
@@ -36,11 +38,11 @@ public class Goods {
     private BigDecimal salePrice;
 
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = "category_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Category category;
 
 
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "brand_id", nullable = false)
+    @JoinColumn(name = "brand_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Brand brand;
 }

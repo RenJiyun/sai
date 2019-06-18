@@ -15,6 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
 import javax.persistence.*;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.jnape.palatable.lambda.adt.Maybe.just;
@@ -38,6 +39,57 @@ public class LRTree implements ApplicationContextAware {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+
+    /**
+     * 直接调用getDirectt
+     * @param cargoClass
+     * @param <T>
+     * @return
+     */
+    public <T extends LRTreeNode<T>> Try<Maybe<T>> getTreeSlow(Class<T> cargoClass) {
+        Try<Maybe<T>> root = getRoot(cargoClass);
+        return root.fmap(maybe -> {
+            if (maybe.toOptional().isPresent()) {
+                doGetTreeSlow(cargoClass, maybe.orElse(null));
+            }
+            return maybe;
+        });
+    }
+
+
+    private <T extends LRTreeNode<T>> void doGetTreeSlow(Class<T> cargoClass, T parent) {
+        List<T> children = getDirectChildren(cargoClass, parent).orThrow().orElse(new ArrayList<>());
+        if (children.size() > 0) {
+            for (T t : children) {
+                doGetTreeSlow(cargoClass, t);
+            }
+
+            parent.setChildren(children);
+        }
+    }
+
+
+    public <T extends LRTreeNode<T>> Try<Maybe<List<T>>> getTreeFast(Class<T> cargoClass) {
+        return null;
+    }
+
+
+
+    /**
+     * 获取根节点
+     * @param cargoClass
+     * @param <T>
+     * @return
+     */
+    public <T extends LRTreeNode<T>> Try<Maybe<T>> getRoot(Class<T> cargoClass) {
+        if (cargoClass == null)
+            return failure(new IllegalArgumentException("cargoClass is null"));
+
+        Query query = em.createQuery(String.format("select c from %s c where c.level_ = 1", cargoClass.getSimpleName()));
+
+        return trying(() -> (T) query.getSingleResult()).<Try<Maybe<T>>>match(
+                t -> t instanceof NoResultException ? success(nothing()) : failure(t), s -> success(just(s)));
+    }
 
 
     /**
@@ -308,7 +360,7 @@ public class LRTree implements ApplicationContextAware {
     @Getter
     @Setter
     @MappedSuperclass
-    public static abstract class LRTreeNode<T> {
+    public static abstract class LRTreeNode<T extends LRTreeNode<T>> {
 
         @Column(name = "left_")
         private int left_;
@@ -318,6 +370,9 @@ public class LRTree implements ApplicationContextAware {
 
         @Column(name = "level_")
         private int level_;
+
+        @Transient
+        private List<T> children;
 
         protected abstract Class<? extends JpaRepository<T, ?>> getCargoRepositoryClass();
     }

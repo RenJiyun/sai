@@ -10,14 +10,16 @@ import javax.validation.constraints.Size;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "brand")
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "brand")
 public class Brand implements Source<Goods> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
     @Size(min = 1, max = 100)
     @Column(length = 100, nullable = false)

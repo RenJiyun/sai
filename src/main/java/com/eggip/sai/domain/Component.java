@@ -19,46 +19,55 @@ import javax.validation.constraints.Size;
 @Getter
 @Setter
 @Builder
-@AllArgsConstructor
 @ToString
-@Entity(name = "resource")
-public class Resource extends LRTree.LRTreeNode<Resource> {
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "component")
+public class Component extends LRTree.LRTreeNode<Component> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
+    private Integer id;
 
     // 仅用于界面显示，无实际意义
     @Size(min = 1, max = 50)
     @Column(length = 50, nullable = false)
     private String name;
 
+
+    // 该字段须和前端的名字一致，并且全局唯一
     @Size(min = 1, max = 200)
-    @Column(length = 200, nullable = false, unique = true)
-    private String key;
+    @Column(name = "ac_reactive_key", length = 200, nullable = false, unique = true)
+    private String acReactiveKey;
 
     // 如果点击该组件后将进行路由切换，则该组件将关联该路由信息
-    @Size(min = 1, max = 100)
+    // 并非每个组件都拥有路由信息
+    @Size(max = 100)
     @Column(length = 100)
     private String route;
 
-    @Size(min = 1, max = 100)
+
+    // 离调用api最近的组件才会拥有该字段信息
+    @Size(max = 100)
     @Column(length = 100)
     private String api;
 
-    @Column(name = "parent_id", nullable = false)
-    private int parentId;
+    @Column(name = "parent_id")
+    private Integer parentId;
 
+
+    // 禁用类型，目前只支持隐藏
     @Column(name = "forbidden_type")
     private ForbiddenType forbiddenType;
 
     // 仅用于界面显示，无实际意义
-    @Column(name = "resource_type", nullable = false)
-    private ResourceType resourceType;
+    @Column(name = "component_type", nullable = false)
+    private ComponentType componentType;
 
 
     @Override
-    protected Class<? extends JpaRepository<Resource, ?>> getCargoRepositoryClass() {
+    protected Class<? extends JpaRepository<Component, ?>> getCargoRepositoryClass() {
         return MenuRepository.class;
     }
 
@@ -68,7 +77,7 @@ public class Resource extends LRTree.LRTreeNode<Resource> {
         HIDE
     }
 
-    public static enum ResourceType {
+    public static enum ComponentType {
         MENU,
         PAGE,
         BUTTON
